@@ -1,0 +1,85 @@
+{
+  "name": "dsh-siliconflow-balance",
+  "version": "0.1.0",
+  "description": "Shows your SiliconFlow credit balance beside the DeepSeek Harness composer — total credit, with a click-through breakdown of granted and topped-up balance.",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "icon": "icon.svg",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": "./lib/client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "locale",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "pnpm run build:host && pnpm run build:client",
+    "build:host": "tsc -p tsconfig.json",
+    "build:client": "tsdown && node scripts/wrap-client-bundle.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json",
+    "test": "vitest run --passWithNoTests",
+    "check": "pnpm run typecheck && pnpm run test && pnpm run build"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "react": "^18.3.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@deepseek-ai/schemastery": "^3.19.0",
+    "@types/node": "^26.6.6",
+    "@types/react": "^18.3.31",
+    "react": "18.3.1",
+    "tsdown": "^0.23.7",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@12.18.0",
+  "license": "MIT",
+  "author": "Erwin Dassen",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "cordis",
+    "plugin",
+    "siliconflow",
+    "balance",
+    "credits"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
