@@ -5,7 +5,9 @@
  * Keep this module free of runtime imports so both halves can use it.
  */
 /** Why a payload carries no usable balance. */
-export type BalanceFailure = 'unconfigured' | 'unauthorized' | 'upstream' | 'invalid-response';
+export type BalanceFailure = 'unconfigured' | 'unauthorized'
+/** SiliconFlow retired the balance route itself (HTTP 410, code 20092). */
+ | 'retired' | 'upstream' | 'invalid-response';
 /** CNY amounts parsed from SiliconFlow's `/v1/user/info` decimal strings. */
 export interface BalanceAmounts {
     /** Granted / free credit: `data.balance`. */

@@ -131,6 +131,22 @@ describe('apply', () => {
     expect(body['upstreamStatus']).toBe(401);
   });
 
+  it('reports the retired balance route as retired, not upstream', async () => {
+    vi.stubGlobal(
+      'fetch',
+      upstream(410, {
+        code: 20092,
+        message: 'This endpoint is deprecated and is no longer available.',
+        data: null,
+      }),
+    );
+    const { ctx, routes } = makeCtx('sk-test');
+    apply(ctx, {});
+    const body = await call(routes[0]!);
+    expect(body['reason']).toBe('retired');
+    expect(body['upstreamStatus']).toBe(410);
+  });
+
   it('maps other upstream failures to upstream with the status', async () => {
     vi.stubGlobal('fetch', upstream(503, { message: 'maintenance' }));
     const { ctx, routes } = makeCtx('sk-test');

@@ -255,6 +255,20 @@ describe('BalancePill', () => {
     expect(popover()!.textContent).not.toContain('showing the last reading');
   });
 
+  it('explains the retired balance endpoint and links to the console', async () => {
+    okRoute({ ok: false, reason: 'retired', upstreamStatus: 410 } as Payload);
+    await mount();
+    expect(pill().getAttribute('data-state')).toBe('retired');
+    expect(pill().getAttribute('title')).toContain('unavailable');
+    await clickPill();
+    const panel = popover()!;
+    expect(panel.textContent).toContain('retired its balance endpoint on 2026-08-14');
+    expect(panel.textContent).not.toContain('Reading the balance');
+    expect(panel.textContent).not.toContain('Could not read the balance');
+    const link = panel.querySelector<HTMLAnchorElement>('a.dsfb_link');
+    expect(link?.getAttribute('href')).toBe('https://cloud.siliconflow.com/');
+  });
+
   it('hides the breakdown rows when the Host policy disables them', async () => {
     okRoute({ ...OK, policy: { refreshSeconds: 300, warnThreshold: 10, showBreakdown: false } });
     await mount();

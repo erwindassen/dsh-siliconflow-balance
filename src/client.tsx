@@ -15,6 +15,9 @@ import type { BalanceAmounts, BalanceFailure, BalancePayload, BalancePolicy } fr
 const NS = 'siliconflow-balance';
 const ROUTE = '/api/siliconflow.balance';
 const MIN_REFRESH_MS = 15_000;
+/** While upstream reports the route as retired, stop polling every 5 min. */
+const RETIRED_RETRY_MS = 30 * 60_000;
+const CONSOLE_URL = 'https://cloud.siliconflow.com/';
 const POPOVER_WIDTH = 252;
 const POPOVER_EDGE = 8;
 
@@ -39,6 +42,9 @@ const ZH: Record<string, string> = {
   'pop.error': '读取余额失败，请稍后重试。',
   'pop.unconfigured': '尚未配置 SILICONFLOW_API_KEY，请在设置中添加。',
   'pop.unauthorized': 'API Key 被拒绝，请在设置中检查 SILICONFLOW_API_KEY。',
+  'pop.retired': '硅基流动已于 2026-08-14 下线余额查询接口（HTTP 410），金额只能在控制台查看。',
+  'pop.console': '打开控制台',
+  'pill.retiredAria': '硅基流动余额：不可用（余额接口已下线）',
   'pop.refresh': '立即刷新',
 };
 
@@ -57,11 +63,22 @@ const EN: Record<string, string> = {
   'pop.error': 'Could not read the balance. Try again in a moment.',
   'pop.unconfigured': 'SILICONFLOW_API_KEY is not configured. Add it in Settings.',
   'pop.unauthorized': 'The API key was rejected. Check SILICONFLOW_API_KEY in Settings.',
+  'pop.retired':
+    'SiliconFlow retired its balance endpoint on 2026-08-14 (HTTP 410). The balance is only visible in the console.',
+  'pop.console': 'Open console',
+  'pill.retiredAria': 'SiliconFlow balance: unavailable (balance endpoint retired upstream)',
   'pop.refresh': 'Refresh now',
 };
 
 type Translate = (key: string, params?: Record<string, unknown>) => string;
-type PillState = 'loading' | 'ok' | 'low' | 'stale' | 'unconfigured' | 'unauthorized';
+type PillState =
+  | 'loading'
+  | 'ok'
+  | 'low'
+  | 'stale'
+  | 'unconfigured'
+  | 'unauthorized'
+  | 'retired';
 
 interface Sample {
   amounts: BalanceAmounts;
@@ -143,6 +160,7 @@ export function BalancePill(props: BalancePillProps): JSX.Element {
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const refreshRef = useRef<() => void>(() => {});
   const policyRef = useRef<BalancePolicy>(DEFAULT_POLICY);
+  const retiredRef = useRef(false);
 
   useEffect(() => {
     let disposed = false;
@@ -159,7 +177,8 @@ export function BalancePill(props: BalancePillProps): JSX.Element {
     const schedule = () => {
       clearTimer();
       if (disposed || typeof document === 'undefined' || document.hidden) return;
-      const interval = Math.max(MIN_REFRESH_MS, policyRef.current.refreshSeconds * 1000);
+      const base = Math.max(MIN_REFRESH_MS, policyRef.current.refreshSeconds * 1000);
+      const interval = retiredRef.current ? Math.max(base, RETIRED_RETRY_MS) : base;
       timer = setTimeout(() => {
         timer = undefined;
         void load();
@@ -189,6 +208,7 @@ export function BalancePill(props: BalancePillProps): JSX.Element {
           policyRef.current = payload.policy;
           setPolicy(payload.policy);
         }
+        retiredRef.current = payload.reason === 'retired';
         if (payload.ok && payload.amounts) {
           setSample({ amounts: payload.amounts, asOf: payload.asOf ?? new Date().toISOString() });
           setFailure(null);
@@ -244,6 +264,7 @@ export function BalancePill(props: BalancePillProps): JSX.Element {
   const state: PillState = (() => {
     if (failure === 'unconfigured') return 'unconfigured';
     if (failure === 'unauthorized') return 'unauthorized';
+    if (failure === 'retired') return sample ? 'stale' : 'retired';
     if (failure) return 'stale';
     if (!settled) return 'loading';
     if (sample && policy.warnThreshold > 0 && sample.amounts.total < policy.warnThreshold) return 'low';
@@ -255,7 +276,8 @@ export function BalancePill(props: BalancePillProps): JSX.Element {
     state === 'loading'
       ? tr('pill.loading')
       : amountLabel ?? tr('pill.empty');
-  const ariaLabel = tr('pill.aria', { amount: label });
+  const ariaLabel =
+    state === 'retired' ? tr('pill.retiredAria') : tr('pill.aria', { amount: label });
 
   const place = useCallback(() => {
     const button = buttonRef.current;
@@ -338,7 +360,11 @@ export function BalancePill(props: BalancePillProps): JSX.Element {
             </div>
           ) : null}
           <div className="dsfb_note">
-            {sample ? tr('pop.updated', { time: formatClock(sample.asOf) }) : tr('pop.pending')}
+            {sample
+              ? tr('pop.updated', { time: formatClock(sample.asOf) })
+              : settled
+                ? null
+                : tr('pop.pending')}
           </div>
           {state === 'low' ? (
             <div className="dsfb_note" data-tone="warn">
@@ -355,6 +381,11 @@ export function BalancePill(props: BalancePillProps): JSX.Element {
               {tr('pop.error')}
             </div>
           ) : null}
+          {state === 'retired' ? (
+            <div className="dsfb_note" data-tone="warn">
+              {tr('pop.retired')}
+            </div>
+          ) : null}
           {state === 'unconfigured' ? (
             <div className="dsfb_note" data-tone="warn">
               {tr('pop.unconfigured')}
@@ -366,6 +397,16 @@ export function BalancePill(props: BalancePillProps): JSX.Element {
             </div>
           ) : null}
           <div className="dsfb_actions">
+            {state === 'retired' ? (
+              <a
+                className="dsfb_action dsfb_link"
+                href={CONSOLE_URL}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {tr('pop.console')}
+              </a>
+            ) : null}
             <button
               type="button"
               className="dsfb_action"
@@ -433,6 +474,7 @@ const CSS = `
 .dsfb_pill[data-state='loading'] { color: var(--dsw-alias-state-idle-primary); }
 .dsfb_pill[data-state='low'] { color: var(--dsw-alias-state-warn-primary); }
 .dsfb_pill[data-state='stale'],
+.dsfb_pill[data-state='retired'],
 .dsfb_pill[data-state='unconfigured'],
 .dsfb_pill[data-state='unauthorized'] { color: var(--dsw-alias-label-tertiary); }
 .dsfb_icon { width: 14px; height: 14px; flex: none; }
@@ -462,7 +504,7 @@ const CSS = `
 .dsfb_note { margin-top: 8px; color: var(--dsw-alias-label-tertiary); }
 .dsfb_note[data-tone='warn'] { color: var(--dsw-alias-state-warn-primary); }
 .dsfb_note[data-tone='error'] { color: var(--dsw-alias-state-error-primary); }
-.dsfb_actions { display: flex; justify-content: flex-end; margin-top: 10px; }
+.dsfb_actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
 .dsfb_action {
   appearance: none;
   border: 1px solid var(--dsw-alias-border-l2, var(--dsw-alias-border-l1));
@@ -475,6 +517,8 @@ const CSS = `
 }
 .dsfb_action:hover:not(:disabled) { color: var(--dsw-alias-label-primary); border-color: var(--dsw-alias-border-l2); }
 .dsfb_action:disabled { opacity: .5; cursor: default; }
+.dsfb_link { text-decoration: none; }
+.dsfb_link:hover { color: var(--dsw-alias-label-primary); border-color: var(--dsw-alias-border-l2); }
 `;
 
 /** Append the pill stylesheet once per page and remove it with the plugin. */

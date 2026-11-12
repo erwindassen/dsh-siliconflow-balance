@@ -566,3 +566,17 @@ Acceptance criteria for the first version:
 - an upstream outage or a missing key degrades to a muted/stale pill, never a composer error;
 - no upstream traffic while the page is hidden;
 - identical behaviour in Desktop and Web from one bundle.
+
+## 10. Addendum — 2026-11-12: the balance endpoint was retired upstream
+
+SiliconFlow retired `GET /v1/user/info` on 2026-08-14 (HTTP 410, `code: 20092`); the
+companion `GET /v1/models` still answers 200 with the same key. §5.7 assumed the endpoint
+would stay available, so the failure taxonomy gains one reason:
+
+- `retired` — the Host saw HTTP 410. It is not an `upstream` error: retrying cannot help.
+- Client: distinct `retired` state, muted pill, popover text that names the retirement date
+  and links to the console, and the refresh loop backs off to every 30 minutes instead of
+  every `refreshSeconds`, so a restored route revives the pill without user action.
+
+The console balance is only reachable with the browser's session cookie. The plugin keeps
+its key-only contract (§6 ADR-001) and does not read console session state.

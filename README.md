@@ -60,6 +60,42 @@ Set on the plugin's Loader row (config-only for v1):
 | `showBreakdown` | `true` | Show the popover breakdown |
 | `warnThreshold` | `10` | CNY threshold for the amber pill; `0` disables |
 
+No configuration is needed in the common case: `credentialRef` defaults to
+`SILICONFLOW_API_KEY`, which is the same credential your `llm-pi-ai` SiliconFlow provider
+already uses (`apiKeyEnv: SILICONFLOW_API_KEY` in the profile patch). The key is resolved by
+the Host through `ctx.credentials`, so it is never sent to the browser.
+
+To change a value, override the row in your profile patch
+(`~/.dsh/profiles/<profile>/cordis.patch.yml`):
+
+```yaml
+- id: siliconflow-balance
+  name: dsh-siliconflow-balance
+  config:
+    warnThreshold: 20
+```
+
+## Upstream status: balance endpoint retired
+
+SiliconFlow retired `GET /v1/user/info` on **2026-08-14**; it now answers
+`410 Gone` with `{"code":20092,"message":"This endpoint is deprecated and is no longer
+available."}`. `GET /v1/models` still returns 200 with the same key, so the credential is
+fine — only the balance route is gone, and no replacement is published yet (the vendor
+docs and `openapi.yaml` still advertise the retired route).
+
+The plugin therefore reports a distinct `retired` state instead of a generic error:
+
+- the pill stays muted, its tooltip says the endpoint is retired upstream;
+- the popover explains the retirement, links to the console (`cloud.siliconflow.com`), and
+  keeps "Refresh now";
+- polling backs off to every 30 minutes, so the pill revives by itself if SiliconFlow
+  restores the route or ships a new one.
+
+The console only exposes the balance to an authenticated browser session (cookie), not to an
+API key, so the plugin deliberately does not read it: doing so would require holding a
+session secret. Point `baseUrl` (and, if the path changes, `src/balance.ts`) at a
+replacement endpoint if the vendor adds one.
+
 ## How it works
 
 ```
@@ -70,7 +106,7 @@ browser  ──GET /api/siliconflow.balance──▶  Host  ──Bearer key─�
 - `src/index.ts` — Host half: schemastery config, credential resolution, upstream call,
   ≤60 s sample cache shared by concurrent requests, and the same-origin route. Failures
   are always HTTP 200 with `{ ok: false, reason }`, where `reason` is one of
-  `unconfigured`, `unauthorized`, `upstream`, `invalid-response`; the composer never sees
+  `unconfigured`, `unauthorized`, `retired`, `upstream`, `invalid-response`; the composer never sees
   an error state from a network problem.
 - `src/balance.ts` — pure envelope parsing and CNY formatting (unit-tested).
 - `src/client.tsx` — browser half: registers the dock entry, renders the pill, and portals
