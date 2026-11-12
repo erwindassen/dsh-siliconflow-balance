@@ -17,7 +17,7 @@ export default defineConfig({
   // and the package `exports` expect `lib/client.js`.
   outExtensions: () => ({ js: '.js' }),
   deps: {
-    neverBundle: ['react', 'react/jsx-runtime'],
+    neverBundle: ['react', 'react/jsx-runtime', 'react-dom'],
   },
   // CJS normally targets Node; the loader runs this bundle in the browser.
   inputOptions: { platform: 'browser' },

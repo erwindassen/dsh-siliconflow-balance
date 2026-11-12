@@ -18,6 +18,22 @@ export interface BalanceAmounts {
   total: number;
 }
 
+/**
+ * Presentation policy resolved on the Host and shipped with every payload.
+ *
+ * The browser half has no access to the Loader row's config, so the refresh
+ * interval and the warning threshold travel with the answer instead of being
+ * duplicated (and possibly drifting) in two places.
+ */
+export interface BalancePolicy {
+  /** Client refresh interval while the page is visible, in seconds. */
+  refreshSeconds: number;
+  /** CNY threshold that turns the pill amber; `0` disables the warning. */
+  warnThreshold: number;
+  /** Whether the popover lists granted / topped-up rows. */
+  showBreakdown: boolean;
+}
+
 export interface BalancePayload {
   ok: boolean;
   /** Present only when `ok` is false. */
@@ -28,4 +44,6 @@ export interface BalancePayload {
   asOf?: string;
   /** Upstream HTTP status for `unauthorized` / `upstream` failures. */
   upstreamStatus?: number;
+  /** Presentation policy; always present on Host answers. */
+  policy?: BalancePolicy;
 }

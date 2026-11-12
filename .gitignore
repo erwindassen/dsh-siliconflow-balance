@@ -1,7 +1,8 @@
 node_modules/
-lib/
 dist/
 coverage/
 .vitest/
 *.tsbuildinfo
 .DS_Store
+.pnpm-store/
+*.tgz
