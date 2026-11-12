@@ -8,7 +8,7 @@ import {
 } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 import { createPortal } from 'react-dom';
-import { CONSOLE_PAGE_PATH, formatCny } from './balance.js';
+import { CONSOLE_PAGE_PATH, formatUsd } from './balance.js';
 import type { BalanceFailure, BalancePayload } from './types.js';
 
 /** Same-origin routes served by the Host half (`src/index.ts`). */
@@ -310,19 +310,19 @@ function BalancePopover(props: PopoverProps): ReactElement {
             'div',
             { className: 'dsfb_row' },
             createElement('dt', null, tr('pop.available')),
-            createElement('dd', null, formatCny(amounts.available)),
+            createElement('dd', null, formatUsd(amounts.available)),
           ),
           createElement(
             'div',
             { className: 'dsfb_row' },
             createElement('dt', null, tr('pop.recharged')),
-            createElement('dd', null, formatCny(amounts.recharged)),
+            createElement('dd', null, formatUsd(amounts.recharged)),
           ),
           createElement(
             'div',
             { className: 'dsfb_row' },
             createElement('dt', null, tr('pop.used')),
-            createElement('dd', null, formatCny(amounts.used)),
+            createElement('dd', null, formatUsd(amounts.used)),
           ),
         )
       : null,
@@ -330,7 +330,7 @@ function BalancePopover(props: PopoverProps): ReactElement {
       ? createElement(
           'div',
           { className: 'dsfb_note', 'data-tone': 'warn' },
-          tr('pop.low', { threshold: formatCny(policy.warnThreshold) }),
+          tr('pop.low', { threshold: formatUsd(policy.warnThreshold) }),
         )
       : null,
     note === undefined
@@ -434,7 +434,7 @@ export function BalancePill(props: PillProps): ReactElement {
             ? 'retired'
             : 'error';
 
-  const label = amounts === undefined ? tr('pill.empty') : formatCny(amounts.available);
+  const label = amounts === undefined ? tr('pill.empty') : formatUsd(amounts.available);
   const ariaLabel = state === 'unconfigured'
     ? tr('pill.unconfiguredAria')
     : state === 'unauthorized'
@@ -509,6 +509,8 @@ export function BalancePill(props: PillProps): ReactElement {
 
 interface SettingsProps {
   tr: TFunction;
+  /** Off on the plugin's own page, where the page title already names it. */
+  showHeading?: boolean;
 }
 
 /** Settings section: the retrieval instructions and the paste fields. */
@@ -543,7 +545,7 @@ export function BalanceSettings(props: SettingsProps): ReactElement {
       const result = await postRoute(SESSION_PATH, { cookie, subjectId });
       setPayload(result);
       if (result.ok) {
-        const available = result.amounts === undefined ? '' : formatCny(result.amounts.available);
+        const available = result.amounts === undefined ? '' : formatUsd(result.amounts.available);
         setCookie('');
         setSubjectId('');
         setNote({ text: tr('settings.saved', { amount: available }), tone: 'success' });
@@ -583,7 +585,7 @@ export function BalanceSettings(props: SettingsProps): ReactElement {
     if (payload === undefined) return tr('settings.notConfigured');
     if (payload.ok && payload.amounts !== undefined) {
       return `${tr('settings.configured')} ${tr('settings.saved', {
-        amount: formatCny(payload.amounts.available),
+        amount: formatUsd(payload.amounts.available),
       })}`;
     }
     if (payload.reason === 'unauthorized') return tr('settings.expired');
@@ -594,7 +596,9 @@ export function BalanceSettings(props: SettingsProps): ReactElement {
   return createElement(
     'section',
     { className: 'dsfb_setup' },
-    createElement('h2', { className: 'dsfb_setup_title' }, tr('settings.title')),
+    props.showHeading === false
+      ? null
+      : createElement('h2', { className: 'dsfb_setup_title' }, tr('settings.title')),
     createElement('p', { className: 'dsfb_setup_lead' }, tr('settings.intro')),
     createElement(
       'div',
@@ -683,7 +687,30 @@ export function BalanceSettings(props: SettingsProps): ReactElement {
   );
 }
 
-/** The Client half: styles, dictionaries, and both slot seats. */
+/** Package name the plugin manager files this bundle under. */
+const BUNDLE_NAME = 'dsh-siliconflow-balance';
+
+interface DetailSectionProps {
+  tr: TFunction;
+  /** Handed over by the plugin manager: which page the section sits on. */
+  subject?: { kind?: string; pkg?: { name?: string } };
+}
+
+/**
+ * The same setup panel, on this bundle's page in the plugin list.
+ *
+ * `plugins.detail.section` is rendered under every detail page, so the section
+ * has to bow out for the subjects it does not own.
+ */
+export function BalanceBundleSection(props: DetailSectionProps): ReactElement | null {
+  const subject = props.subject;
+  if (subject !== undefined && !(subject.kind === 'bundle' && subject.pkg?.name === BUNDLE_NAME)) {
+    return null;
+  }
+  return createElement(BalanceSettings, { tr: props.tr, showHeading: false });
+}
+
+/** The Client half: styles, dictionaries, and the three slot seats. */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => installStyles(), 'dsh-siliconflow-balance: styles');
 
@@ -704,6 +731,20 @@ export function apply(ctx: ClientContext): void {
         inject: () => ({ tr }),
       },
       BalancePill,
+    ),
+  );
+
+  ctx.slots.inject('plugins.detail.section', () =>
+    ctx.slots.register(
+      {
+        name: 'plugins.detail.section',
+        id: SLOT_ID,
+        order: 0,
+        label: () => tr('settings.title'),
+        locale: NS,
+        inject: () => ({ tr }),
+      },
+      BalanceBundleSection,
     ),
   );
 

@@ -147,14 +147,14 @@ describe('reading without a stored session', () => {
 });
 
 describe('reading with a stored session', () => {
-  it('returns the CNY amounts and hides the session from the payload', async () => {
+  it('returns the US-dollar amounts and hides the session from the payload', async () => {
     upstream({ body: OK_ENVELOPE });
     const { routes } = harness({}, { [COOKIE_REF]: COOKIE, [SUBJECT_REF]: SUBJECT });
     const payload = await get(routes);
     expect(payload).toMatchObject({
       ok: true,
       configured: true,
-      amounts: { available: 906.696398, recharged: 5000, used: 4093.303602 },
+      amounts: { available: 0.906696398, recharged: 5, used: 4.093303602 },
     });
     const serialized = JSON.stringify(payload);
     expect(serialized).not.toContain('intercom-session');
@@ -250,7 +250,7 @@ describe('saving a pasted session', () => {
     expect(payload).toMatchObject({
       ok: true,
       configured: true,
-      amounts: { available: 906.696398 },
+      amounts: { available: 0.906696398 },
     });
     expect(credentials.get(COOKIE_REF)).toBe(COOKIE);
     expect(credentials.get(SUBJECT_REF)).toBe(SUBJECT);

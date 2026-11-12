@@ -625,3 +625,23 @@ string, not with `BigInt` division, so amounts above `Number.MAX_SAFE_INTEGER` r
 popover, and `available + used = recharged` for a consistent response.
 
 Version 0.3.0 ships this model; 0.1.0 (API key) and 0.2.0 (retired notice) are historical tags.
+
+## 12. Addendum — 2026-11-12 (v0.4.0): US dollars and the plugin page
+
+Two corrections after the first live session:
+
+- **Currency.** The wallet integer is not a nano-yuan value. The user's two captures pin the scale
+  at `1e12` units per US dollar: `5000000000000` is a `$5.00` top-up and `654984326000` is `$0.65`
+  left. `UNITS_PER_USD = 1_000_000_000_000`, `unitsToUsd()` scales the decimal string (same
+  exact-once rounding argument as before), and `formatUsd()` renders `$`, two decimals, and four
+  decimals below one cent so a nearly empty wallet does not read as `$0.00`.
+- **Setup panel on the plugin's own page.** The bundle page opens from the installed-plugins list;
+  its `plugins.bundle.config` seat is the schema form only, so the paste panel is registered at
+  `plugins.detail.section` with `{id, order, label}` and renders
+  `BalanceBundleSection → BalanceSettings` when `subject.kind === 'bundle'` and
+  `subject.pkg.name === 'dsh-siliconflow-balance'`, and `null` otherwise. The Settings section and
+  the bundle page share the same component, so both write through
+  `POST /api/siliconflow.balance/session` into the credential store.
+
+`dsh.client.inject` gained `@deepseek-ai/dsh-client-ui-plugin-manager` so the detail seat's owner is
+loaded before this bundle.

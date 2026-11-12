@@ -139,12 +139,13 @@ describe('client apply', () => {
     expect(document.body.querySelector('style[data-dsh-siliconflow-balance]')).toBeNull();
   });
 
-  it('registers exactly two slots', () => {
+  it('registers the dock, the settings section and the bundle-page section', () => {
     document.head.innerHTML = '';
     const { registrations } = harness();
-    expect(registrations).toHaveLength(2);
+    expect(registrations).toHaveLength(3);
     expect(registrations.map((entry) => entry.options.name).sort()).toEqual([
       'conversation.composer.dock',
+      'plugins.detail.section',
       'settings.section',
     ]);
   });

@@ -7,8 +7,11 @@ export declare const CONSOLE_PAGE_PATH = "/me/expensebill";
 export declare const WALLET_PEEK_PATH = "/walletd-server/api/v1/subject/profile/peek";
 /** How long the Host waits for the console wallet service. */
 export declare const UPSTREAM_TIMEOUT_MS = 10000;
-/** Wallet amounts are integer strings in nano-yuan (1e-9 CNY). */
-export declare const NANO_UNITS_PER_CNY = 1000000000;
+/**
+ * Wallet amounts are integer strings scaled by 1e12 per US dollar: the sample
+ * capture's `5000000000000` is a $5.00 top-up and `654984326000` is $0.65 left.
+ */
+export declare const UNITS_PER_USD = 1000000000000;
 /** The console answers a successful wallet request with this code. */
 export declare const OK_CODE = 20000;
 export interface WalletReading {
@@ -16,17 +19,22 @@ export interface WalletReading {
     asOf: string;
 }
 /**
- * Scale a nano-yuan integer string to CNY.
+ * Scale a wallet integer string to US dollars.
  *
- * The division is done on the decimal string rather than with `BigInt` division
- * so that amounts beyond `Number.MAX_SAFE_INTEGER` still round to the nearest
+ * The scaling runs on the decimal string rather than with `BigInt` division so
+ * that amounts beyond `Number.MAX_SAFE_INTEGER` still round to the nearest
  * double exactly once, instead of losing precision twice.
  */
-export declare function nanoToCny(value: unknown): number;
-/** Decode the console wallet response into CNY amounts. */
+export declare function unitsToUsd(value: unknown): number;
+/** Decode the console wallet response into US-dollar amounts. */
 export declare function parseWalletPeek(body: unknown): WalletReading;
-/** Format a CNY amount for the pill: `¥88.88`. */
-export declare function formatCny(amount: number): string;
+/**
+ * Format a US-dollar amount for the pill: `$88.88`.
+ *
+ * Sub-cent balances keep four decimals so a nearly empty wallet does not read
+ * as `$0.00` while it can still pay for a call.
+ */
+export declare function formatUsd(amount: number): string;
 /** Console origin plus the wallet route. */
 export declare function peekUrl(baseUrl: string): string;
 /** Console page the user pastes the session from. */

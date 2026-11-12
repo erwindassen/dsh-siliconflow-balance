@@ -1,7 +1,7 @@
 # dsh-siliconflow-balance
 
 A [DeepSeek Harness](https://github.com/deepseek-ai) plugin: your SiliconFlow **console** balance,
-as a small `¥` pill below the composer.
+as a small `$` pill below the composer.
 
 ## Why it reads the console
 
@@ -22,7 +22,7 @@ service for you. The browser never sees the cookie, and the browser never calls 
 ## Install
 
 ```bash
-plugin_manager({ action: "install_bundle", target: "github:erwindassen/dsh-siliconflow-balance#v0.3.0" })
+plugin_manager({ action: "install_bundle", target: "github:erwindassen/dsh-siliconflow-balance#v0.4.0" })
 ```
 
 Pin a tag so a later push cannot change what runs. The package ships its `lib/` build, so a git
@@ -31,7 +31,8 @@ for it.
 
 ## Set it up (once)
 
-1. Open **Settings** and pick **SiliconFlow balance** in the sidebar.
+1. Open **Settings → SiliconFlow balance**, or open the plugin on its own page in **Plugins** —
+   the same setup panel sits under the bundle description there.
 2. Press **Open the console page** — it opens
    `https://cloud.siliconflow.com/me/expensebill` in your default browser.
 3. In the browser dev tools → **Network**, reload, and find the request named `peek` (or filter for
@@ -45,15 +46,16 @@ with a message instead of silently replacing a working one.
 
 ## What you see
 
-- `¥906.70` in the composer dock, right after the token-usage pill.
-- Amber when the available balance drops below `warnThreshold` (default `¥10`).
+- `$42.50` in the composer dock, right after the token-usage pill.
+- Amber when the available balance drops below `warnThreshold` (default `$10`).
 - Click the pill for **Available / Topped up / Used**, the reading time, and a **Refresh now** action.
 - `Balance —` until a session is saved; if the session expires the pill turns red-ish and the
   popover says to paste a fresh cookie.
 
-Amounts in the wallet response are integer strings in **nano-yuan** (`1e-9` CNY), so
-`906696398000` is `¥906.696398` and is shown rounded to `¥906.70`. `available + used = recharged`
-holds for the sample account.
+Amounts in the wallet response are integer strings scaled by **`1e12` per US dollar**, so
+`5000000000000` is `$5.00` topped up, `906696398000` is `$0.906696398` left, and the pill shows
+`$0.91`. `available + used = recharged` holds for the sample account. Sub-cent balances keep four
+decimals (`$0.0040`) so a nearly empty wallet does not read as `$0.00`.
 
 ## Configuration
 
@@ -66,7 +68,7 @@ The Loader row config is the plugin's settings form (rendered by DSH from a sche
 | `subjectRef` | `SILICONFLOW_CONSOLE_SUBJECT` | Credential ref holding the pasted subject id |
 | `refreshSeconds` | `300` | Pill poll interval while the window is visible (clamped to 30–3600) |
 | `showBreakdown` | `true` | Show the three amounts in the popover |
-| `warnThreshold` | `10` | Amber below this many CNY; `0` disables the warning |
+| `warnThreshold` | `10` | Amber below this many US dollars; `0` disables the warning |
 
 The two credential refs are patch-level configuration; normally you never touch them.
 
@@ -111,7 +113,7 @@ Browser (client.tsx)                       Host (index.ts)
 
 ```
 src/index.ts      Host half: config schema, three routes, cache, console call
-src/balance.ts    Wire parsing: nano-yuan → CNY, URL joining, formatting
+src/balance.ts    Wire parsing: wallet units → USD, URL joining, formatting
 src/client.tsx    Browser half: composer pill, popover, settings section, styles
 src/types.ts      Shared payload types
 locale/{en,zh}.json  Plugin card metadata

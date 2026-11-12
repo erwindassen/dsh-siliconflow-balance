@@ -12,9 +12,9 @@ export type BalanceFailure =
  | 'retired'
 /** The credential store refused the write. */
  | 'storage';
-/** CNY amounts decoded from the console wallet response. */
+/** US-dollar amounts decoded from the console wallet response. */
 export interface BalanceAmounts {
-    /** Spendable right now (nano-yuan `available`, scaled to CNY). */
+    /** Spendable right now (the wallet's `available`, scaled to US dollars). */
     available: number;
     /** Total topped up over the account's life. */
     recharged: number;

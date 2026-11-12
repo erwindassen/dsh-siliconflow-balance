@@ -66,7 +66,7 @@ export const Config = z.object({
     .min(0)
     .default(10)
     .volatile()
-    .description('Turn the pill amber below this many CNY. Set 0 to disable the warning.'),
+    .description('Turn the pill amber below this many US dollars. Set 0 to disable the warning.'),
 });
 
 /** Validated row config, after defaults. */

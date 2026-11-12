@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   CONSOLE_ORIGIN,
   consolePageUrl,
-  formatCny,
-  nanoToCny,
+  formatUsd,
+  unitsToUsd,
   parseWalletPeek,
   peekUrl,
 } from '../src/balance.js';
@@ -24,12 +24,12 @@ const OK_ENVELOPE = {
 };
 
 describe('parseWalletPeek', () => {
-  it('reads nano-yuan integers as CNY amounts', () => {
+  it('reads wallet integers as US-dollar amounts', () => {
     const reading = parseWalletPeek(OK_ENVELOPE);
     expect(reading.amounts).toEqual({
-      available: 906.696398,
-      recharged: 5000,
-      used: 4093.303602,
+      available: 0.906696398,
+      recharged: 5,
+      used: 4.093303602,
     });
     expect(Number.isNaN(Date.parse(reading.asOf))).toBe(false);
   });
@@ -73,39 +73,45 @@ describe('parseWalletPeek', () => {
   });
 });
 
-describe('nanoToCny', () => {
-  it('converts one nano-yuan to 1e-9 CNY', () => {
-    expect(nanoToCny('1')).toBe(1e-9);
+describe('unitsToUsd', () => {
+  it('converts one wallet unit to 1e-12 USD', () => {
+    expect(unitsToUsd('1')).toBe(1e-12);
   });
 
-  it('converts a whole round amount', () => {
-    expect(nanoToCny('5000000000000')).toBe(5000);
+  it('reads the sample account as a $5 top-up with $0.91 left', () => {
+    expect(unitsToUsd('5000000000000')).toBe(5);
+    expect(unitsToUsd('906696398000')).toBe(0.906696398);
+    expect(unitsToUsd('654984326000')).toBe(0.654984326);
   });
 
   it('stays exact past the float-safe integer range', () => {
-    // 9_007_199_254_740_993 nano-yuan is 9007199.254740993 CNY.
-    expect(nanoToCny('9007199254740993')).toBe(9007199.254740993);
+    // 9_007_199_254_740_993 wallet units is 9007.199254740993 USD.
+    expect(unitsToUsd('9007199254740993')).toBe(9007.199254740993);
   });
 
   it('rejects anything that is not an unsigned integer string', () => {
     for (const bad of [undefined, null, 1, '1.0', '-1', '', ' 1']) {
-      expect(() => nanoToCny(bad)).toThrow();
+      expect(() => unitsToUsd(bad)).toThrow();
     }
   });
 });
 
-describe('formatCny', () => {
-  it('always shows two decimals with the currency mark', () => {
-    expect(formatCny(0)).toBe('¥0.00');
-    expect(formatCny(1234.5)).toBe('¥1234.50');
-    expect(formatCny(906.696398)).toBe('¥906.70');
-    expect(formatCny(0.004)).toBe('¥0.00');
-    expect(formatCny(0.006)).toBe('¥0.01');
+describe('formatUsd', () => {
+  it('shows dollars with two decimals', () => {
+    expect(formatUsd(0)).toBe('$0.00');
+    expect(formatUsd(1234.5)).toBe('$1234.50');
+    expect(formatUsd(0.654984326)).toBe('$0.65');
+    expect(formatUsd(5)).toBe('$5.00');
+  });
+
+  it('keeps sub-cent precision so a nearly empty wallet is not $0.00', () => {
+    expect(formatUsd(0.004)).toBe('$0.0040');
+    expect(formatUsd(0.0009)).toBe('$0.0009');
   });
 
   it('rejects non-finite amounts', () => {
-    expect(() => formatCny(Number.NaN)).toThrow();
-    expect(() => formatCny(Number.POSITIVE_INFINITY)).toThrow();
+    expect(() => formatUsd(Number.NaN)).toThrow();
+    expect(() => formatUsd(Number.POSITIVE_INFINITY)).toThrow();
   });
 });
 

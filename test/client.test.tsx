@@ -29,7 +29,9 @@ for (const key of [
 }
 Object.defineProperty(g, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true });
 
-const { BalancePill, dictionaries } = await import('../src/client.js');
+const { BalanceBundleSection, BalancePill, BalanceSettings, dictionaries } = await import(
+  '../src/client.js',
+);
 const EN = dictionaries.en as Record<string, string>;
 
 function interpolate(template: string, params?: Record<string, unknown>): string {
@@ -46,7 +48,7 @@ function payload(overrides: Record<string, unknown> = {}) {
   return {
     ok: true,
     configured: true,
-    amounts: { available: 906.696398, recharged: 5000, used: 4093.3036 },
+    amounts: { available: 42.5, recharged: 100, used: 57.5 },
     asOf: '2026-11-12T17:09:39.000Z',
     policy: POLICY,
     consoleUrl: CONSOLE_URL,
@@ -127,7 +129,7 @@ describe('composer pill', () => {
     const spy = stubRoute(async () => answer(payload()));
     mount();
     await flush();
-    expect(pill().textContent).toBe('¥906.70');
+    expect(pill().textContent).toBe('$42.50');
     expect(pill().dataset.state).toBe('ok');
     expect(pill().getAttribute('aria-expanded')).toBe('false');
     expect(pill().getAttribute('aria-haspopup')).toBe('dialog');
@@ -143,9 +145,9 @@ describe('composer pill', () => {
     expect(pill().getAttribute('aria-expanded')).toBe('true');
     const pop = popover();
     expect(pop).not.toBeNull();
-    expect(pop!.textContent).toContain('¥906.70');
-    expect(pop!.textContent).toContain('¥5000.00');
-    expect(pop!.textContent).toContain('¥4093.30');
+    expect(pop!.textContent).toContain('$42.50');
+    expect(pop!.textContent).toContain('$100.00');
+    expect(pop!.textContent).toContain('$57.50');
     expect(pop!.parentElement).toBe(document.body);
 
     await act(async () => {
@@ -179,7 +181,7 @@ describe('composer pill', () => {
     await flush();
     expect(pill().dataset.state).toBe('low');
     await clickPill();
-    expect(popover()!.textContent).toContain('Below the ¥10.00 warning threshold');
+    expect(popover()!.textContent).toContain('Below the $10.00 warning threshold');
   });
 
   it('keeps the normal state when the threshold is disabled', async () => {
@@ -225,13 +227,13 @@ describe('composer pill', () => {
     });
     mount();
     await flush();
-    expect(pill().textContent).toBe('¥906.70');
+    expect(pill().textContent).toBe('$42.50');
 
     await act(async () => {
       dom.window.dispatchEvent(new dom.window.Event('focus'));
     });
     await flush();
-    expect(pill().textContent).toBe('¥906.70');
+    expect(pill().textContent).toBe('$42.50');
     expect(pill().dataset.state).toBe('stale');
     await clickPill();
     expect(popover()!.textContent).toContain('Could not refresh');
@@ -276,6 +278,27 @@ describe('composer pill', () => {
     await clickPill();
     const pop = popover()!;
     expect(pop.textContent).not.toContain('Available');
-    expect(pop.textContent).not.toContain('¥5000.00');
+    expect(pop.textContent).not.toContain('$100.00');
+  });
+});
+
+describe('bundle-page setup section', () => {
+  it('shows the paste panel only on its own bundle page', () => {
+    const own = BalanceBundleSection({
+      tr,
+      subject: { kind: 'bundle', pkg: { name: 'dsh-siliconflow-balance' } },
+    });
+    expect(own?.type).toBe(BalanceSettings);
+    expect(own?.props).toMatchObject({ showHeading: false });
+
+    expect(
+      BalanceBundleSection({ tr, subject: { kind: 'bundle', pkg: { name: 'dsh-other' } } }),
+    ).toBeNull();
+    expect(
+      BalanceBundleSection({
+        tr,
+        subject: { kind: 'row', pkg: { name: 'dsh-siliconflow-balance' } },
+      }),
+    ).toBeNull();
   });
 });
