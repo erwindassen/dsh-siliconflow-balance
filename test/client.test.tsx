@@ -292,13 +292,17 @@ describe('bundle-page setup section', () => {
     expect(own?.props).toMatchObject({ showHeading: false });
 
     expect(
-      BalanceBundleSection({ tr, subject: { kind: 'bundle', pkg: { name: 'dsh-other' } } }),
-    ).toBeNull();
-    expect(
       BalanceBundleSection({
         tr,
         subject: { kind: 'row', pkg: { name: 'dsh-siliconflow-balance' } },
-      }),
+      })?.type,
+    ).toBe(BalanceSettings);
+
+    expect(
+      BalanceBundleSection({ tr, subject: { kind: 'bundle', pkg: { name: 'dsh-other' } } }),
+    ).toBeNull();
+    expect(
+      BalanceBundleSection({ tr, subject: { kind: 'item', pkg: { name: 'dsh-siliconflow-balance' } } }),
     ).toBeNull();
   });
 });

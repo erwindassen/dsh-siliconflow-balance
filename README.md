@@ -22,7 +22,7 @@ service for you. The browser never sees the cookie, and the browser never calls 
 ## Install
 
 ```bash
-plugin_manager({ action: "install_bundle", target: "github:erwindassen/dsh-siliconflow-balance#v0.4.0" })
+plugin_manager({ action: "install_bundle", target: "github:erwindassen/dsh-siliconflow-balance#v0.4.1" })
 ```
 
 Pin a tag so a later push cannot change what runs. The package ships its `lib/` build, so a git

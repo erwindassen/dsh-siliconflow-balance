@@ -699,14 +699,17 @@ interface DetailSectionProps {
 /**
  * The same setup panel, on this bundle's page in the plugin list.
  *
- * `plugins.detail.section` is rendered under every detail page, so the section
- * has to bow out for the subjects it does not own.
+ * `plugins.detail.section` is rendered under every detail page, and the plugin
+ * list opens either the bundle page or one of its rows, so both subjects of
+ * this package get the panel and every other subject gets `null`.
  */
 export function BalanceBundleSection(props: DetailSectionProps): ReactElement | null {
   const subject = props.subject;
-  if (subject !== undefined && !(subject.kind === 'bundle' && subject.pkg?.name === BUNDLE_NAME)) {
-    return null;
-  }
+  const mine =
+    subject !== undefined &&
+    (subject.kind === 'bundle' || subject.kind === 'row') &&
+    subject.pkg?.name === BUNDLE_NAME;
+  if (subject !== undefined && !mine) return null;
   return createElement(BalanceSettings, { tr: props.tr, showHeading: false });
 }
 
