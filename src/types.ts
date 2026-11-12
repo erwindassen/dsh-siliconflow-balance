@@ -1,55 +1,55 @@
-/**
- * Wire payload for `GET /api/siliconflow.balance`.
- *
- * Shared by the Host route (`src/index.ts`) and the browser pill (`src/client.tsx`).
- * Keep this module free of runtime imports so both halves can use it.
- */
-
-/** Why a payload carries no usable balance. */
+/** Why a balance reading could not be produced. */
 export type BalanceFailure =
+  /** No console session has been pasted yet. */
   | 'unconfigured'
+  /** The console answered with a login redirect or 401/403: the session expired. */
   | 'unauthorized'
-  /** SiliconFlow retired the balance route itself (HTTP 410, code 20092). */
-  | 'retired'
+  /** The console wallet request failed with a server or transport error. */
   | 'upstream'
-  | 'invalid-response';
+  /** The console answered with something that is not a wallet reading. */
+  | 'invalid-response'
+  /** The upstream API retired the endpoint this plugin used to read. */
+  | 'retired'
+  /** The credential store refused the write. */
+  | 'storage';
 
-/** CNY amounts parsed from SiliconFlow's `/v1/user/info` decimal strings. */
+/** CNY amounts decoded from the console wallet response. */
 export interface BalanceAmounts {
-  /** Granted / free credit: `data.balance`. */
-  granted: number;
-  /** Topped-up credit: `data.chargeBalance`. */
-  charged: number;
-  /** Sum of the two: `data.totalBalance`. */
-  total: number;
+  /** Spendable right now (nano-yuan `available`, scaled to CNY). */
+  available: number;
+  /** Total topped up over the account's life. */
+  recharged: number;
+  /** Total already spent. */
+  used: number;
 }
 
-/**
- * Presentation policy resolved on the Host and shipped with every payload.
- *
- * The browser half has no access to the Loader row's config, so the refresh
- * interval and the warning threshold travel with the answer instead of being
- * duplicated (and possibly drifting) in two places.
- */
+/** Client-facing display policy, so the browser does not need Host config access. */
 export interface BalancePolicy {
-  /** Client refresh interval while the page is visible, in seconds. */
   refreshSeconds: number;
-  /** CNY threshold that turns the pill amber; `0` disables the warning. */
   warnThreshold: number;
-  /** Whether the popover lists granted / topped-up rows. */
   showBreakdown: boolean;
 }
 
+/** Every route answers this shape, always with HTTP 200. */
 export interface BalancePayload {
   ok: boolean;
-  /** Present only when `ok` is false. */
   reason?: BalanceFailure;
-  /** Present only when `ok` is true. */
+  /** Human-readable detail for a refused session paste. */
+  message?: string;
+  /** Whether a console session is currently stored. */
+  configured: boolean;
   amounts?: BalanceAmounts;
-  /** ISO-8601 time of the upstream sample that produced `amounts`. */
+  /** ISO timestamp of the reading. */
   asOf?: string;
-  /** Upstream HTTP status for `unauthorized` / `upstream` failures. */
+  /** Status of the console wallet response, when there was one. */
   upstreamStatus?: number;
-  /** Presentation policy; always present on Host answers. */
-  policy?: BalancePolicy;
+  policy: BalancePolicy;
+  /** Where the user copies the session values from. */
+  consoleUrl: string;
+}
+
+/** Body of `POST /api/siliconflow.balance/session`. */
+export interface SessionInput {
+  cookie: string;
+  subjectId: string;
 }

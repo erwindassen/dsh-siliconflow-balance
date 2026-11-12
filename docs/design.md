@@ -580,3 +580,48 @@ would stay available, so the failure taxonomy gains one reason:
 
 The console balance is only reachable with the browser's session cookie. The plugin keeps
 its key-only contract (§6 ADR-001) and does not read console session state.
+
+## 11. Addendum — 2026-11-12: console-session mode replaces the API-key path
+
+Erwin captured the console's own balance request in Safari:
+
+```
+GET https://cloud.siliconflow.com/walletd-server/api/v1/subject/profile/peek
+Cookie: <console session>
+x-subject-id: <account short id>
+→ 200 {"code":20000,"data":{"financialInfo":{"available":"906696398000",
+        "recharged":"5000000000000","used":"4093303602000", ...}}}
+```
+
+That endpoint does not accept an API key (without credentials, with `Authorization: Bearer`, and
+with `X-API-Key` it always answers `307` to the account login). So the data path is the console
+session, and the product decision (m00907) is:
+
+- drop the API-key data path entirely — the plugin's only source is the console wallet service;
+- the pasted `Cookie` and `x-subject-id` go into the DSH **credential store** through the
+  `credentials` service, never into plugin config, and are never returned to the browser;
+- ship a config plane the way other plugins do: the schemastery `Config` on the Loader row plus a
+  free-form `settings.section` that explains what to copy, opens the console page in the default
+  browser (`window.open(url, '_blank', 'noopener,noreferrer')`), and takes the two paste fields;
+- the wallet route is called with `redirect: 'manual'`, so a login redirect becomes a distinct
+  `unauthorized` state instead of an HTML body parsed as JSON.
+
+Three same-origin routes replace ADR-001's single route:
+
+| route | method | purpose |
+| --- | --- | --- |
+| `/api/siliconflow.balance` | GET | current reading (cached ≤60 s, single-flight) |
+| `/api/siliconflow.balance/session` | POST | validate the pasted session, then store it |
+| `/api/siliconflow.balance/clear` | POST | forget both credentials |
+
+State machine changes: `unconfigured` now means "no session pasted", `unauthorized` means "console
+rejected the session", and the refresh loop backs off to 30 minutes while unauthorized. The pill
+keeps the last reading on a transient failure (`stale`). `retired` remains for a 410 from the
+wallet route.
+
+Units: wallet amounts are nano-yuan integer strings (`1e-9` CNY) and are scaled on the decimal
+string, not with `BigInt` division, so amounts above `Number.MAX_SAFE_INTEGER` round exactly once.
+`available` is the spendable balance and is what the pill shows; `recharged` and `used` fill the
+popover, and `available + used = recharged` for a consistent response.
+
+Version 0.3.0 ships this model; 0.1.0 (API key) and 0.2.0 (retired notice) are historical tags.

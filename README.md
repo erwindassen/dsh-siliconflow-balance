@@ -1,161 +1,145 @@
 # dsh-siliconflow-balance
 
-A DeepSeek Harness plugin for **DSH Desktop and DSH Web** that shows your SiliconFlow
-credit balance in the composer dock — directly under the prompt input, next to the
-token-usage pill.
+A [DeepSeek Harness](https://github.com/deepseek-ai) plugin: your SiliconFlow **console** balance,
+as a small `¥` pill below the composer.
 
-> **Status:** implemented and verified in DSH Desktop. Design and research live in
-> [docs/design.md](docs/design.md).
+## Why it reads the console
 
-## What it does
+SiliconFlow retired the API-key balance endpoint (`GET /v1/user/info`) on 2026-08-14 — it now
+answers `410` / `code: 20092`, while `/v1/models` still works with the same key. The account
+balance is still visible in the console, and the console gets it from its own wallet service:
 
-- A small pill in `conversation.composer.dock` showing `¥<totalBalance>` (CNY, two decimals).
-- Click it for a breakdown popover: granted credit (`balance`), topped-up credit
-  (`chargeBalance`), total (`totalBalance`), and the time of the last refresh.
-- Turns amber when the total drops below `warnThreshold` (default ¥10).
-- Refreshes every 5 minutes while the page is visible, pauses while hidden, and
-  revalidates on focus. The API key never reaches the browser: the Host owns the call
-  and the cache, and the page only receives the formatted numbers.
+```
+GET https://cloud.siliconflow.com/walletd-server/api/v1/subject/profile/peek
+Cookie: …            ← the signed-in console session
+x-subject-id: …      ← the account short id
+```
 
-## Requirements
-
-- DSH Desktop 0.2.2-rc.1+ or `dsh web` (the same client bundle serves both).
-- A SiliconFlow API key stored in DSH credentials under the ref `SILICONFLOW_API_KEY`
-  (the same ref the `llm-pi-ai` provider already uses). Nothing new to provision.
+Those two values come from your browser session, not from an API key. So this plugin stores them
+once (in the DSH **credential store**, not in plugin config) and lets the Host poll the wallet
+service for you. The browser never sees the cookie, and the browser never calls SiliconFlow.
 
 ## Install
 
-The repository ships its build output (`lib/`), so installing needs no toolchain and no
-build step.
-
-**From GitHub, into one profile** (repeat for `desktop` and `web`):
-
-```text
-plugin_manager({ action: "install_bundle", target: "github:erwindassen/dsh-siliconflow-balance" })
+```bash
+plugin_manager({ action: "install_bundle", target: "github:erwindassen/dsh-siliconflow-balance#v0.3.0" })
 ```
 
-Pin a release instead of the default branch by appending a ref, e.g.
-`github:erwindassen/dsh-siliconflow-balance#v0.1.0`. Keep `lib/` committed and rebuilt
-before tagging — the git install runs no build script.
+Pin a tag so a later push cannot change what runs. The package ships its `lib/` build, so a git
+install needs no toolchain. After installing, restart DeepSeek Harness if the plugin manager asks
+for it.
 
-**From a local checkout** (what this repository was verified against):
+## Set it up (once)
 
-```text
-plugin_manager({ action: "install_bundle", target: "/absolute/path/to/dsh-siliconflow-balance" })
-```
+1. Open **Settings** and pick **SiliconFlow balance** in the sidebar.
+2. Press **Open the console page** — it opens
+   `https://cloud.siliconflow.com/me/expensebill` in your default browser.
+3. In the browser dev tools → **Network**, reload, and find the request named `peek` (or filter for
+   `walletd-server`).
+4. Copy the whole **Cookie** request header into the first field, and the **x-subject-id** request
+   header value into the second. Press **Validate and save**.
+5. The section reports the live balance; the composer pill fills in on the next poll.
 
-Reload the page afterwards; the pill appears right of the token-usage pill inside the
-conversation composer. Hover the pill for the accessible label, click it for the
-breakdown.
+The plugin validates the session against the console before saving it, so a bad paste is rejected
+with a message instead of silently replacing a working one.
+
+## What you see
+
+- `¥906.70` in the composer dock, right after the token-usage pill.
+- Amber when the available balance drops below `warnThreshold` (default `¥10`).
+- Click the pill for **Available / Topped up / Used**, the reading time, and a **Refresh now** action.
+- `Balance —` until a session is saved; if the session expires the pill turns red-ish and the
+  popover says to paste a fresh cookie.
+
+Amounts in the wallet response are integer strings in **nano-yuan** (`1e-9` CNY), so
+`906696398000` is `¥906.696398` and is shown rounded to `¥906.70`. `available + used = recharged`
+holds for the sample account.
 
 ## Configuration
 
-Set on the plugin's Loader row (config-only for v1):
+The Loader row config is the plugin's settings form (rendered by DSH from a schemastery schema):
 
 | key | default | meaning |
 | --- | --- | --- |
-| `baseUrl` | `https://api.siliconflow.com/v1` | Vendor base URL (`https://api.siliconflow.cn/v1` for the CN site) |
-| `credentialRef` | `SILICONFLOW_API_KEY` | Credential ref resolved through `ctx.credentials` |
-| `refreshSeconds` | `300` | Client refresh interval while visible (clamped to 30–3600) |
-| `showBreakdown` | `true` | Show the popover breakdown |
-| `warnThreshold` | `10` | CNY threshold for the amber pill; `0` disables |
+| `consoleBaseUrl` | `https://cloud.siliconflow.com` | Console origin the Host calls |
+| `cookieRef` | `SILICONFLOW_CONSOLE_COOKIE` | Credential ref holding the pasted Cookie header |
+| `subjectRef` | `SILICONFLOW_CONSOLE_SUBJECT` | Credential ref holding the pasted subject id |
+| `refreshSeconds` | `300` | Pill poll interval while the window is visible (clamped to 30–3600) |
+| `showBreakdown` | `true` | Show the three amounts in the popover |
+| `warnThreshold` | `10` | Amber below this many CNY; `0` disables the warning |
 
-No configuration is needed in the common case: `credentialRef` defaults to
-`SILICONFLOW_API_KEY`, which is the same credential your `llm-pi-ai` SiliconFlow provider
-already uses (`apiKeyEnv: SILICONFLOW_API_KEY` in the profile patch). The key is resolved by
-the Host through `ctx.credentials`, so it is never sent to the browser.
-
-To change a value, override the row in your profile patch
-(`~/.dsh/profiles/<profile>/cordis.patch.yml`):
-
-```yaml
-- id: siliconflow-balance
-  name: dsh-siliconflow-balance
-  config:
-    warnThreshold: 20
-```
-
-## Upstream status: balance endpoint retired
-
-SiliconFlow retired `GET /v1/user/info` on **2026-08-14**; it now answers
-`410 Gone` with `{"code":20092,"message":"This endpoint is deprecated and is no longer
-available."}`. `GET /v1/models` still returns 200 with the same key, so the credential is
-fine — only the balance route is gone, and no replacement is published yet (the vendor
-docs and `openapi.yaml` still advertise the retired route).
-
-The plugin therefore reports a distinct `retired` state instead of a generic error:
-
-- the pill stays muted, its tooltip says the endpoint is retired upstream;
-- the popover explains the retirement, links to the console (`cloud.siliconflow.com`), and
-  keeps "Refresh now";
-- polling backs off to every 30 minutes, so the pill revives by itself if SiliconFlow
-  restores the route or ships a new one.
-
-The console only exposes the balance to an authenticated browser session (cookie), not to an
-API key, so the plugin deliberately does not read it: doing so would require holding a
-session secret. Point `baseUrl` (and, if the path changes, `src/balance.ts`) at a
-replacement endpoint if the vendor adds one.
+The two credential refs are patch-level configuration; normally you never touch them.
 
 ## How it works
 
 ```
-browser  ──GET /api/siliconflow.balance──▶  Host  ──Bearer key──▶  api.siliconflow.com
-   pill  ◀── { ok, amounts, asOf, policy } ──        (cache ≤60 s, single flight)
+Browser (client.tsx)                       Host (index.ts)
+  GET  /api/siliconflow.balance      →      cached sample? → credentials.resolve(cookie/subject)
+  POST /api/siliconflow.balance/session →   validate session, then credentials.set(...)
+  POST /api/siliconflow.balance/clear    →  credentials.unset(...)
+                                            └→ GET walletd-server/…/peek (redirect: 'manual')
 ```
 
-- `src/index.ts` — Host half: schemastery config, credential resolution, upstream call,
-  ≤60 s sample cache shared by concurrent requests, and the same-origin route. Failures
-  are always HTTP 200 with `{ ok: false, reason }`, where `reason` is one of
-  `unconfigured`, `unauthorized`, `retired`, `upstream`, `invalid-response`; the composer never sees
-  an error state from a network problem.
-- `src/balance.ts` — pure envelope parsing and CNY formatting (unit-tested).
-- `src/client.tsx` — browser half: registers the dock entry, renders the pill, and portals
-  the popover to `document.body` because the docked composer clips overlays.
+- Every route answers HTTP 200 with `{ok, reason?, configured, amounts?, asOf?, policy, consoleUrl}`;
+  failures are data, never a 5xx, so the pill never breaks the composer.
+- One request in flight at a time; concurrent polls share it. The Host caches a sample for
+  `min(refreshSeconds / 2, 60)` seconds; the pill drops ticks while the document is hidden.
+- A login redirect (307) or 401/403 is reported as `unauthorized` — the session expired — and the
+  pill retries every 30 minutes instead of every `refreshSeconds`.
+- The old API-key path is gone; `retired` still exists in the failure taxonomy for a 410 answer.
+
+## Security
+
+- The cookie and subject id live in `~/.dsh/.credentials.yaml` via the `credentials` service; the
+  settings form only ever writes them.
+- No route returns either value. The payload carries only amounts, timestamps, and policy.
+- Only the Host process talks to SiliconFlow; the browser bundle never imports an HTTP client.
+- `redirect: 'manual'` prevents a login page from being parsed as a balance reading.
+- Copying a session cookie is like copying a login: treat it as a secret. **Forget session** wipes
+  both values.
+
+## Limits
+
+- Console routes are not a public API contract; SiliconFlow can rename or move
+  `walletd-server/…/peek`. If that happens the pill reports an upstream failure instead of a fake
+  number. Update `src/balance.ts` and the parse path, or open an issue.
+- There is no refresh token: when the console session expires you paste a fresh cookie (about as
+  often as the console itself logs you out).
+- The subject id is per account; switching SiliconFlow accounts means pasting again.
 
 ## Layout
 
 ```
-src/index.ts     Host half: config, route, credential resolution, cache
-src/balance.ts   Pure parse/format helpers (unit-tested)
-src/client.tsx   Browser half: dock registration, pill, popover
-src/types.ts     Shared wire payload types
-test/            vitest: envelope parsing, formatting, Host route, and the jsdom render
-docs/design.md   Research, decisions, ADR, implementation plan
+src/index.ts      Host half: config schema, three routes, cache, console call
+src/balance.ts    Wire parsing: nano-yuan → CNY, URL joining, formatting
+src/client.tsx    Browser half: composer pill, popover, settings section, styles
+src/types.ts      Shared payload types
+locale/{en,zh}.json  Plugin card metadata
+test/             vitest: parser, Host routes, jsdom render, slot registration
 ```
-
-## Verification
-
-Checked against a live DSH Desktop profile (0.2.2-rc.1):
-
-- `pnpm run check` — TypeScript (Host + client), 36 vitest tests, and the build are green.
-- `install_bundle` with the local path applied the bundle to the profile; the Loader row
-  `siliconflow-balance` reports status `schema`.
-- The client bundle registered its dictionaries and the dock entry
-  `{ registrant: "dsh-siliconflow-balance", id: "siliconflow-balance", order: 2, active: true }`
-  in `conversation.composer.dock` on the running page.
-- The jsdom suite mounts the real component: states `loading`/`ok`/`low`/`stale`/
-  `unconfigured`, `aria-expanded` on a real `<button>`, the portaled popover, Escape and
-  outside-click dismissal, the hidden-document pause, and the "no reading yet" failure note.
-
-Not verified here: pixel-level styling in a screenshot, and the balance shown against a
-real SiliconFlow key — this machine has no `SILICONFLOW_API_KEY` configured, so the live pill
-renders the `unconfigured` state until a key exists.
 
 ## Development
 
 ```bash
 pnpm install
-pnpm run typecheck   # Host + client TypeScript
-pnpm test            # vitest
-pnpm run build       # emits lib/index.js (Host) and the wrapped lib/client.js
-pnpm run check       # typecheck + test + build
+pnpm run check   # typecheck + tests + build
+pnpm run build   # lib/index.js (Host) and lib/client.js (loader-wrapped browser bundle)
 ```
 
-`pnpm build:client` builds the browser half with tsdown and wraps it in the
-`window.__ModuleLoader__.load({ id, factory })` contract
-(`scripts/wrap-client-bundle.mjs`). React and React DOM are platform modules of the DSH
-page and stay external.
+Install from the checkout while developing:
 
-## License
+```bash
+plugin_manager({ action: "install_bundle", target: "/absolute/path/to/dsh-siliconflow-balance" })
+```
+
+Note that the profile then holds a copy of the package; reinstall after changing the source.
+
+## Verification
+
+- `pnpm run check`: typecheck, 62 vitest tests across 4 files, and a clean build.
+- Live: the pill and the settings section register in a running DSH Desktop profile
+  (`conversation.composer.dock` occupant `siliconflow-balance`, order 2, after the usage pill).
+- Not verified: pixel-level styling against the shipped composer; a real session against a real
+  console response end-to-end (the wire shape came from a Safari capture, and the tests replay it).
 
 MIT © Erwin Dassen

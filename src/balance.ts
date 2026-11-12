@@ -1,80 +1,88 @@
 import type { BalanceAmounts } from './types.js';
 
-/** Default vendor base URL; the CN deployment is `https://api.siliconflow.cn/v1`. */
-export const DEFAULT_BASE_URL = 'https://api.siliconflow.com/v1';
+/** Origin of the SiliconFlow console that owns the wallet service. */
+export const CONSOLE_ORIGIN = 'https://cloud.siliconflow.com';
 
-/**
- * Upstream request timeout. The Host route must answer quickly even when the
- * vendor is unreachable; the browser has its own interval and never blocks.
- */
+/** Console page whose network traffic carries the wallet request. */
+export const CONSOLE_PAGE_PATH = '/me/expensebill';
+
+/** Wallet micro-service route. Paths are not public: found in the console traffic. */
+export const WALLET_PEEK_PATH = '/walletd-server/api/v1/subject/profile/peek';
+
+/** How long the Host waits for the console wallet service. */
 export const UPSTREAM_TIMEOUT_MS = 10_000;
 
-/**
- * SiliconFlow returns balances as decimal *strings* (`"88.88"`). `1e3`, `+1`,
- * `.5`, `1,000` and negative values are all rejected: none of them is a legal
- * money literal in this API, and silently accepting one would display a wrong
- * balance instead of degrading to `invalid-response`.
- */
-const DECIMAL_STRING = /^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/;
+/** Wallet amounts are integer strings in nano-yuan (1e-9 CNY). */
+export const NANO_UNITS_PER_CNY = 1_000_000_000;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+/** The console answers a successful wallet request with this code. */
+export const OK_CODE = 20000;
+
+const UINTEGER = /^(?:0|[1-9]\d*)$/;
+
+export interface WalletReading {
+  amounts: BalanceAmounts;
+  asOf: string;
 }
 
-/** Parse one decimal money field, naming it in the error for diagnosability. */
-function parseDecimal(value: unknown, field: string): number {
-  if (typeof value !== 'string' || !DECIMAL_STRING.test(value)) {
-    throw new TypeError(`dsh-siliconflow-balance: ${field} is not a decimal string`);
+function asRecord(value: unknown, what: string): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(`${what} is not an object`);
   }
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) {
-    throw new TypeError(`dsh-siliconflow-balance: ${field} is not a finite amount`);
-  }
-  return amount;
+  return value as Record<string, unknown>;
 }
 
 /**
- * Parse the SiliconFlow `/v1/user/info` envelope into `BalanceAmounts`.
+ * Scale a nano-yuan integer string to CNY.
  *
- * The envelope is `{ code: 20000, message, status: true, data: { balance,
- * chargeBalance, totalBalance } }`; anything else is rejected so the Host can
- * report `invalid-response` instead of serving a half-trusted number.
- * See docs/design.md §3.
+ * The division is done on the decimal string rather than with `BigInt` division
+ * so that amounts beyond `Number.MAX_SAFE_INTEGER` still round to the nearest
+ * double exactly once, instead of losing precision twice.
  */
-export function parseUserInfo(body: unknown): BalanceAmounts {
-  if (!isRecord(body)) {
-    throw new TypeError('dsh-siliconflow-balance: user/info body is not an object');
+export function nanoToCny(value: unknown): number {
+  if (typeof value !== 'string' || !UINTEGER.test(value)) {
+    throw new Error(`amount is not an unsigned integer string: ${String(value)}`);
   }
-  if (body['code'] !== 20000) {
-    throw new TypeError('dsh-siliconflow-balance: user/info envelope code is not 20000');
-  }
-  if (body['status'] === false) {
-    throw new TypeError('dsh-siliconflow-balance: user/info envelope status is false');
-  }
-  const data = body['data'];
-  if (!isRecord(data)) {
-    throw new TypeError('dsh-siliconflow-balance: user/info data is not an object');
-  }
-  return {
-    granted: parseDecimal(data['balance'], 'data.balance'),
-    charged: parseDecimal(data['chargeBalance'], 'data.chargeBalance'),
-    total: parseDecimal(data['totalBalance'], 'data.totalBalance'),
-  };
+  const digits = value.padStart(10, '0');
+  const whole = digits.slice(0, -9).replace(/^0+(?=\d)/, '');
+  const fraction = digits.slice(-9).replace(/0+$/, '');
+  return Number(fraction === '' ? whole : `${whole}.${fraction}`);
 }
 
-/**
- * Format a CNY amount for the pill: two decimals and a `¥` prefix
- * (`88.88` → `¥88.88`). Intentionally locale-independent so the value reads
- * identically in every DSH locale and in the Host log.
- */
-export function formatCny(amount: number): string {
-  if (!Number.isFinite(amount)) {
-    throw new TypeError('dsh-siliconflow-balance: amount is not finite');
+/** Decode the console wallet response into CNY amounts. */
+export function parseWalletPeek(body: unknown): WalletReading {
+  const envelope = asRecord(body, 'wallet response');
+  if (envelope.code !== OK_CODE) {
+    throw new Error(`wallet response code is ${String(envelope.code)}, expected ${OK_CODE}`);
   }
+  const data = asRecord(envelope.data, 'wallet response data');
+  const financialInfo = asRecord(data.financialInfo, 'wallet response financialInfo');
+  const amounts: BalanceAmounts = {
+    available: nanoToCny(financialInfo.available),
+    recharged: nanoToCny(financialInfo.recharged),
+    used: nanoToCny(financialInfo.used),
+  };
+  return { amounts, asOf: new Date().toISOString() };
+}
+
+/** Format a CNY amount for the pill: `¥88.88`. */
+export function formatCny(amount: number): string {
+  if (!Number.isFinite(amount)) throw new Error(`amount is not finite: ${String(amount)}`);
   return `¥${amount.toFixed(2)}`;
 }
 
-/** Join a configured base URL with the vendor's balance endpoint. */
-export function userInfoUrl(baseUrl: string): string {
-  return `${baseUrl.trim().replace(/\/+$/, '')}/user/info`;
+function originOf(baseUrl: string): string {
+  const origin = baseUrl.trim().replace(/\/+$/, '');
+  if (origin === '') throw new Error('console base URL is empty');
+  return origin;
+}
+
+/** Console origin plus the wallet route. */
+export function peekUrl(baseUrl: string): string {
+  return `${originOf(baseUrl)}${WALLET_PEEK_PATH}`;
+}
+
+/** Console page the user pastes the session from. */
+export function consolePageUrl(baseUrl: string): string {
+  return `${originOf(baseUrl)}${CONSOLE_PAGE_PATH}`;
 }

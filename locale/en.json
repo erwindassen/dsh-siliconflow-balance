@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "SiliconFlow balance",
-    "description": "Shows your SiliconFlow credit balance in the composer dock — total credit, with a click-through breakdown of granted and topped-up balance."
+    "description": "Shows your SiliconFlow console balance in the composer dock. Paste the console session once in Settings, and the available, recharged, and used amounts stay fresh without reopening the console."
   }
 }

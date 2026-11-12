@@ -1,7 +1,7 @@
 {
   "name": "dsh-siliconflow-balance",
-  "version": "0.2.0",
-  "description": "Shows your SiliconFlow credit balance beside the DeepSeek Harness composer \u2014 total credit, with a click-through breakdown of granted and topped-up balance.",
+  "version": "0.3.0",
+  "description": "Shows your SiliconFlow console credit balance beside the DeepSeek Harness composer. Paste the console session once in Settings; the pill reads available, topped-up, and used amounts without reopening the console.",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -34,7 +34,8 @@
       "inject": [
         "@deepseek-ai/dsh-client-ui-slots",
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-conversation"
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-settings"
       ]
     }
   },
@@ -85,7 +86,9 @@
     "plugin",
     "siliconflow",
     "balance",
-    "credits"
+    "credits",
+    "console",
+    "wallet"
   ],
   "publishConfig": {
     "access": "public"

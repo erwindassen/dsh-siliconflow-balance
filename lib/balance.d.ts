@@ -1,26 +1,34 @@
 import type { BalanceAmounts } from './types.js';
-/** Default vendor base URL; the CN deployment is `https://api.siliconflow.cn/v1`. */
-export declare const DEFAULT_BASE_URL = "https://api.siliconflow.com/v1";
-/**
- * Upstream request timeout. The Host route must answer quickly even when the
- * vendor is unreachable; the browser has its own interval and never blocks.
- */
+/** Origin of the SiliconFlow console that owns the wallet service. */
+export declare const CONSOLE_ORIGIN = "https://cloud.siliconflow.com";
+/** Console page whose network traffic carries the wallet request. */
+export declare const CONSOLE_PAGE_PATH = "/me/expensebill";
+/** Wallet micro-service route. Paths are not public: found in the console traffic. */
+export declare const WALLET_PEEK_PATH = "/walletd-server/api/v1/subject/profile/peek";
+/** How long the Host waits for the console wallet service. */
 export declare const UPSTREAM_TIMEOUT_MS = 10000;
+/** Wallet amounts are integer strings in nano-yuan (1e-9 CNY). */
+export declare const NANO_UNITS_PER_CNY = 1000000000;
+/** The console answers a successful wallet request with this code. */
+export declare const OK_CODE = 20000;
+export interface WalletReading {
+    amounts: BalanceAmounts;
+    asOf: string;
+}
 /**
- * Parse the SiliconFlow `/v1/user/info` envelope into `BalanceAmounts`.
+ * Scale a nano-yuan integer string to CNY.
  *
- * The envelope is `{ code: 20000, message, status: true, data: { balance,
- * chargeBalance, totalBalance } }`; anything else is rejected so the Host can
- * report `invalid-response` instead of serving a half-trusted number.
- * See docs/design.md §3.
+ * The division is done on the decimal string rather than with `BigInt` division
+ * so that amounts beyond `Number.MAX_SAFE_INTEGER` still round to the nearest
+ * double exactly once, instead of losing precision twice.
  */
-export declare function parseUserInfo(body: unknown): BalanceAmounts;
-/**
- * Format a CNY amount for the pill: two decimals and a `¥` prefix
- * (`88.88` → `¥88.88`). Intentionally locale-independent so the value reads
- * identically in every DSH locale and in the Host log.
- */
+export declare function nanoToCny(value: unknown): number;
+/** Decode the console wallet response into CNY amounts. */
+export declare function parseWalletPeek(body: unknown): WalletReading;
+/** Format a CNY amount for the pill: `¥88.88`. */
 export declare function formatCny(amount: number): string;
-/** Join a configured base URL with the vendor's balance endpoint. */
-export declare function userInfoUrl(baseUrl: string): string;
+/** Console origin plus the wallet route. */
+export declare function peekUrl(baseUrl: string): string;
+/** Console page the user pastes the session from. */
+export declare function consolePageUrl(baseUrl: string): string;
 //# sourceMappingURL=balance.d.ts.map
